@@ -1,0 +1,621 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:kfccheck/screens/branches/branches.dart';
+import 'package:intl/intl.dart';
+import 'package:kfccheck/screens/assign_walk/assign_walk.dart';
+import 'package:provider/provider.dart';
+import '../models/branch_model.dart';
+import '../provider/branch_provider.dart';
+@@ -14,19 +15,13 @@ import '../screens/qa_walk.dart';
+import '../services/services.dart';
+import 'common.dart';
+import 'local_storage_provider.dart';
+import 'package:collection/collection.dart';
+
+class LocalUser {
+  late FirebaseAuth _firebaseAuth;
+  late FirebaseFirestore _firebaseFirestore;
+  static final LocalUser _instance = LocalUser._internal();
+
+  final List<BranchModel> _branchDetail = [];
+
+  void clearbranchDetail() {
+    _branchDetail.clear();
+  }
+
+  List<BranchModel> get branchDetail => _branchDetail;
+  final List<String> _templatesIdsList = [];
+  List<String> get templatesIdsList => _templatesIdsList;
+
+@@ -69,16 +64,7 @@ class LocalUser {
+      var authResult = await FirebaseAuth.instance.signInWithEmailAndPassword(email: email, password: password);
+      if (authResult.user != null) {
+        Fluttertoast.showToast(msg: 'Successfully logged in');
+        // var userDoc = await FirebaseFirestore.instance.collection('users').doc(authResult.user?.uid).get();
+        // if (userDoc.exists) {
+        //   _userData = userDoc;
+        //   if (isPasswordSaved) {
+        //     await locator.get<LocalStorageProvider>().saveByKey('Email', data: email);
+        //     await locator.get<LocalStorageProvider>().saveByKey('Password', data: password);
+        //   }
+        //   Fluttertoast.showToast(msg: 'Successfully logged in');
+        //   return true;
+        // }
+
+        return true;
+      } else {
+        Fluttertoast.showToast(msg: 'Incorrect email or password');
+@@ -109,13 +95,6 @@ class LocalUser {
+    }
+  }
+
+  showSnackBar(context, message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+      message,
+    )));
+  }
+
+  Future<User?> signInWithEmailPassword(String email, String password, BuildContext context) async {
+    var loginProvider = Provider.of<LoginProvider>(context, listen: false);
+    var customerProvider = Provider.of<CustomerProvider>(context, listen: false);
+@@ -132,7 +111,7 @@ class LocalUser {
+      // if user exist in fireauth and then check what is the role of crunnt user role in fireauth
+      if (user != null) {
+        String userid = user.uid;
+        await getAssignsTemplatesIdsd(context,userid);
+        await getAssignsTemplatesIdsd(context, userid);
+        loginProvider.setCurrentUserId(userid);
+        _firebaseFirestore.collection('Users').doc(userid).get().then((DocumentSnapshot docs) {
+          final data = docs.data() as Map<String, dynamic>;
+@@ -169,36 +148,31 @@ class LocalUser {
+    return user;
+  }
+
+  Future<List<BranchModel>> getBranchDetail(String branchId) async {
+  Future getBranchDetail(String branchId, BranchProvider branchProvider) async {
+    //var userProvider = Provider.of<AddUserProvider>(context, listen: false);
+    clearbranchDetail();
+    //learbranchDetail();
+    await _firebaseFirestore.collection('Branch').doc(branchId).get().then((DocumentSnapshot docs) {
+      final data = docs.data() as Map<String, dynamic>;
+
+      if (_branchDetail.isEmpty) {
+        _branchDetail.add(BranchModel(
+            branchName: data['branchName'].toString(),
+            branchCity: data['branchCity'].toString(),
+            branchLocation: data['branchLocation'].toString()));
+      }
+      branchProvider.setBranchDetail(BranchModel(
+          branchName: data['branchName'].toString(),
+          branchCity: data['branchCity'].toString(),
+          branchLocation: data['branchLocation'].toString()));
+
+      // _branchName = data['branchName'].toString();
+      // _branchCity = data['branchCity'].toString();
+      // _branchLocation = data['branchLocation'].toString();
+      //String datam=data['customer_name'].toString();
+      //userProvider.setcustomerName(name);
+    });
+
+    return branchDetail;
+  }
+
+  Future<List<String>> getAssignsTemplatesIdsd(BuildContext context, String userid) async {
+    var loginProvider = Provider.of<LoginProvider>(context, listen: false);
+    try {
+      QuerySnapshot snapshot = await FirebaseFirestore.instance
+          .collection('AssignmentTemplate')
+          .where('assignTo', isEqualTo: userid)
+          .get();
+      QuerySnapshot snapshot =
+          await FirebaseFirestore.instance.collection('AssignmentTemplate').where('assignTo', isEqualTo: userid).get();
+
+      for (var element in snapshot.docs) {
+        String templateId = await element['templateId'];
+        _templatesIdsList.add(templateId);
+@@ -210,5 +184,46 @@ class LocalUser {
+    return _templatesIdsList;
+  }
+
+  String loginUserId(context) {
+    var loginProvider = Provider.of<LoginProvider>(context, listen: false);
+    return loginProvider.crunntUserId.toString();
+  }
+
+  String getCurrentDateTime() {
+    DateTime now = DateTime.now();
+    String nowDate = now.toIso8601String();
+    return nowDate;
+  }
+
+  Future checkTaskOverDue(String dueTime, String docId) async {
+    DateTime dueDate = DateFormat('dd-MM-yyyy hh:mm a').parse(dueTime);
+
+    DateTime currentDate = DateTime.now();
+
+    int result = currentDate.compareTo(dueDate);
+    if (result > 0) {
+     await  _firebaseFirestore.collection('AssignmentTemplate').doc(docId).update({
+        'status': 'missed',
+      });
+    }
+  }
+
+  Future<String> getBranchName(String branchId) async {
+    //  var branchProvider = Provider.of<BranchProvider>(context, listen: false);
+
+    String branchName = '';
+    await _firebaseFirestore.collection('Branch').doc(branchId).get().then((DocumentSnapshot docs) {
+      final data = docs.data() as Map<String, dynamic>;
+      String branchName = data['branchName'].toString();
+      //String datam=data['customer_name'].toString();
+    });
+    return branchName;
+  }
+}
+
+showSnackBar(context, message) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+    message,
+  )));
+}
+
+
+class Background extends StatelessWidget {
+  final String title;
+@@ -10,22 +15,65 @@ class Background extends StatelessWidget {
+  final double? childPositionRight;
+  final double? childPositionLeft;
+  final bool isBranchScreen;
+  //final Widget? bottomNavBar;
+
+  const Background({
+  Background({
+    super.key,
+    required this.child,
+    required this.title,
+    this.childPositionBottom,
+    this.childPositionLeft,
+    this.childPositionRight,
+    this.childPositionUp,
+    this.isBranchScreen=false
+    this.isBranchScreen = false,
+    // this.bottomNavBar
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    var branchProvider = Provider.of<BranchProvider>(context, listen: false);
+    return SafeArea(
+      child: Scaffold(
+          bottomNavigationBar: isBranchScreen
+              ? CustomBottomNavBar(
+                  selectedIndex: 0,
+                  onTabChanged: (index) {
+                    branchProvider.setWalkPagesIndex(index);
+
+
+                  },
+                  navItems: [
+                      NavigationDestination(
+                        selectedIcon: Image.asset("asset/alltask.png", color: Colors.white, height: 27),
+                        //  selectedIcon: SvgPicture.asset('assets/images/home.png'),
+
+                        icon: Image.asset(
+                          "asset/alltask.png",
+                          color: Colors.grey,
+                          height: 25,
+                        ),
+                        label: 'All',
+                      ),
+                      NavigationDestination(
+                        selectedIcon: Image.asset("asset/pending.png", color: Colors.white, height: 27),
+                        icon: Image.asset(
+                          "asset/pending.png",
+                           color: Colors.grey,
+                          height: 25,
+                        ),
+                        label: 'Missed',
+                      ),
+                      NavigationDestination(
+                        selectedIcon: Image.asset("asset/completed.png", color: Colors.white, height: 27),
+                        icon: Image.asset(
+                           color: Colors.grey,
+                          "asset/completed.png",
+                          height: 25,
+                        ),
+                        label: 'Completed',
+                      ),
+                    ])
+              : null,
+          backgroundColor: gray,
+          body: Stack(children: [
+            Container(
+@@ -39,14 +87,12 @@ class Background extends StatelessWidget {
+                    InkWell(
+                      child: const Icon(Icons.arrow_back_ios, color: white),
+                      onTap: () {
+                        isBranchScreen==false?
+                        Navigator.pop(context):false;
+                        isBranchScreen == false ? Navigator.pop(context) : false;
+                      },
+                    ),
+                    Text(
+                      title,
+                      style:
+                          const TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: Dgreen),
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: Dgreen),
+                    ),
+                  ],
+                ),
+@@ -58,10 +104,14 @@ class Background extends StatelessWidget {
+              right: childPositionRight,
+              left: childPositionLeft,
+              child: Padding(
+                padding: EdgeInsets.only(top: MediaQuery.of(context).size.height/9),
+                padding: EdgeInsets.only(top: MediaQuery.of(context).size.height / 9),
+                child: child,
+              ),
+            ),
+            // Positioned(
+            //   bottom: 0,
+
+            //   child: bottomNavBar ??Container(width: 50,height: 50,color: Colors.black,))
+          ])),
+    );
+  }
+ 35 changes: 35 additions & 0 deletions35  
+// lib/components/bottom_navbar.dart
+
+import 'package:flutter/material.dart';
+
+
+typedef IndexFunction = void Function(int);
+
+class CustomBottomNavBar extends StatelessWidget {
+  final int selectedIndex;
+  final IndexFunction onTabChanged;
+  final List<Widget> navItems;
+  const CustomBottomNavBar(
+      {super.key, required this.selectedIndex, required this.onTabChanged, required this.navItems});
+
+  @override
+  Widget build(BuildContext context) {
+    return
+      NavigationBarTheme(
+      data: NavigationBarThemeData(
+        indicatorColor: Colors.transparent,
+        backgroundColor: Colors.black,
+        labelTextStyle: MaterialStateProperty.all(
+          const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            color: Colors.white,
+          ),
+        ),
+      ),
+      child: NavigationBar(
+        selectedIndex: selectedIndex,
+        onDestinationSelected: onTabChanged,
+        destinations: navItems,
+      ),
+    );
+  }
+}
+  19 changes: 11 additions & 8 deletions19  
+lib/components/inspections_page.dart
+@@ -56,7 +56,7 @@ class InspectionComponent extends StatelessWidget {
+                                // showAlertDialog(context, branches[index].id);
+
+                                child: FutureBuilder<String>(
+                                  future: getValue(  snapshot.data!.docs[index]['id'].toString()),
+                                  future: getValue(snapshot.data!.docs[index]['id'].toString()),
+                                  builder: (context, d) {
+                                    return Card(
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+@@ -70,7 +70,13 @@ class InspectionComponent extends StatelessWidget {
+                                              const TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: Sblack),
+                                        ),
+                                        // subtitle: Text(snapshot.data!.docs[index]['userName']),
+                                        trailing: d.data == 'true' ? Icon(Icons.check,color: Colors.green,) : const Text(''),
+
+                                        trailing: d.data == 'true'
+                                            ? Icon(
+                                                Icons.check,
+                                                color: Colors.green,
+                                              )
+                                            : const Text(''),
+                                      ),
+                                    );
+                                  },
+@@ -80,11 +86,8 @@ class InspectionComponent extends StatelessWidget {
+                  },
+                ))));
+  }
+  Future<String> getValue(String id) async
+{
+
+  return await locator.get<LocalStorageProvider>().retrieveDataByKey(id)??'';
+}
+  Future<String> getValue(String id) async {
+    return await locator.get<LocalStorageProvider>().retrieveDataByKey(id) ?? '';
+  }
+}
+
+
+  282 changes: 239 additions & 43 deletions282  
+lib/config/config.dart
+@@ -3,80 +3,276 @@ import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:intl/intl.dart';
+import 'package:kfccheck/common/common.dart';
+import 'package:kfccheck/screens/assign_walk/assign_walk.dart';
+import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
+
+import '../common/local_storage_provider.dart';
+import '../common/user.dart';
+import '../models/inspectionChecklistModel.dart';
+import '../provider/branch_provider.dart';
+import '../provider/login_provider.dart';
+import '../screens/assign_walk/completed_walk.dart';
+import '../screens/assign_walk/missed_walk.dart';
+import '../screens/assign_walk/pending_walk.dart';
+import '../screens/done.dart';
+import '../screens/qa_walk.dart';
+import '../services/services.dart';
+
+class AppConfig {
+  static const storage = FlutterSecureStorage();
+  static final CollectionReference assignDataCollection = FirebaseFirestore.instance.collection('AssignmentData');
+  static var localUserHandler = locator.get<LocalUser>();
+  static String? assignmentId;
+
+  static var inspectionWalkPages=[PendingWalk(),MissedWalk(),CompletedWalk()];
+// Diaog box for regetser customer admin user
+  static Future<void> addUserDialog(
+    context,
+    //String title,
+  ) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // user must tap button!
+      builder: (BuildContext context) {
+        // ignore: unused_local_variable
+        Size size;
+        size = MediaQuery.of(context).size;
+        return SizedBox(
+          width: 400,
+          child: AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: SingleChildScrollView(
+              child: Padding(
+                  padding: const EdgeInsets.only(left: 18.0, right: 18.0),
+                  child: Column(
+                    children: const [Text('Are you want to submit Walk? ')],
+                  )),
+            ),
+          ),
+        );
+      },
+
+  static Future<void> saveChecklistsDataInLocalStorage() async {
+    var email = await locator.get<LocalStorageProvider>().retrieveDataByKey('checkListLocalyData');
+    if (email != null) {
+      List<dynamic> decodedPeople = json.decode(email);
+
+      List<CheckListModel> myModelList = decodedPeople.map((map) => CheckListModel.fromJson(map)).toList();
+
+      final List<Map<String, dynamic>> updatedMappedList =
+          List<Map<String, dynamic>>.from(myModelList.map((e) => e.toMap()))
+            ..addAll(InspectionChecklist.checkListAnswers.map((e) => e.toMap()));
+      await storage.write(key: 'checkListLocalyData', value: json.encode(updatedMappedList));
+      print('sucee fuly add second time');
+
+      // String checkListData = json.encode(myModelList.map((e) => e.toMap()).toList()).a;
+    } else {
+      String checkListData = await json.encode(InspectionChecklist.checkListAnswers.map((e) => e.toMap()).toList());
+      // var email = await locator.get<LocalStorageProvider>().retrieveDataByKey('zeeshan');
+
+      await storage.write(key: 'checkListLocalyData', value: (checkListData));
+      print('sucessfully wriote list first time');
+    }
+
+    // String encodedChecklistsData = json.encode(InspectionChecklist.checkListAnswers.map((p) => p.toMap()).toList());
+
+    // await locator.get<LocalStorageProvider>().saveByKey(subchapterId, data: encodedChecklistsData);
+    // // await storage.write(key: subchapterId, value: encodedChecklistsData);
+  }
+
+  static Future<void> savesAllLocallyStorageKeys(String subchapterId, String key) async {
+    String subChapterkeyValue = subchapterId;
+    List<String> listOfKeys = [];
+
+    var keyList = await locator.get<LocalStorageProvider>().retrieveDataByKey(key);
+    if (keyList == null) {
+      listOfKeys.add(subChapterkeyValue);
+      await storage.write(key: key, value: jsonEncode(listOfKeys));
+      listOfKeys.clear();
+      print('first time execute');
+    } else {
+      List<dynamic> listDataOfKeys = await jsonDecode(keyList);
+      List<String> swapKeysListOfStringType = [];
+      swapKeysListOfStringType.addAll(listDataOfKeys.cast<String>());
+      swapKeysListOfStringType.add(subChapterkeyValue);
+
+      await storage.write(key: key, value: jsonEncode(swapKeysListOfStringType));
+
+      listDataOfKeys.clear();
+      swapKeysListOfStringType.clear();
+
+      print('second time');
+      // List<String> myListU=[];
+    }
+  }
+
+  static Widget numericAnswerWidget(String questionId, int index, LoginProvider loginProvider) {
+    return Container(
+      child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('AssigningCheckListNumericOption')
+            .where('questionId', isEqualTo: questionId)
+            .where('isExpected', isEqualTo: true)
+            .snapshots(),
+        builder: (BuildContext contex, AsyncSnapshot<QuerySnapshot> snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CupertinoActivityIndicator());
+          } else if (snapshot.hasData == false) {
+            return const Center(
+              child: Text(
+                'Data not found',
+                style: TextStyle(color: Colors.red),
+              ),
+            );
+          } else {
+            return Container(
+              height: 50,
+              color: const Color(0xFFF2F2F2),
+              width: 160,
+              child: TextFormField(
+                keyboardType: TextInputType.number,
+                inputFormatters: <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly],
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Enter value';
+                  }
+                  null;
+                  return null;
+                },
+                onChanged: (value) async {
+                  DateTime now = DateTime.now();
+
+// format the DateTime object
+                  String formattedDate = DateFormat('MMM d, yyyy – h:mm a').format(now);
+                  //String nowDate = formatter.format(now);
+                  var uuid = const Uuid().v4();
+                  int answer = int.parse(value);
+                  int max = int.parse(snapshot.data!.docs[0]['max'].toString());
+                  int min = int.parse(snapshot.data!.docs[0]['min'].toString());
+
+                  await InspectionChecklist.addDataIntoCheckListModelList(
+                      questionId.toString(),
+                      (answer > min && answer < max) ? true : false,
+                      value,
+                      loginProvider.assignmentId.toString(),
+                      uuid,
+                      formattedDate);
+                },
+                decoration: const InputDecoration(
+                    hintText: 'Enter the Value',
+                    hintStyle: TextStyle(
+                        fontSize: 16.0, fontWeight: FontWeight.w400, color: Color(0xFFABAAAA), fontFamily: 'SofiaPro'),
+                    enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFF2F1F1))),
+                    errorBorder: InputBorder.none),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  static Future submitTemplateResponse(BuildContext context) async {
+    var email = await locator.get<LocalStorageProvider>().retrieveDataByKey('checkListLocalyData');
+
+    List<dynamic> decodedPeople = await json.decode(email);
+
+    List<CheckListModel> myModelList = decodedPeople.map((map) => CheckListModel.fromJson(map)).toList();
+
+    for (var data in myModelList) {
+      assignDataCollection.doc(data.id).set(data.toMap());
+    }
+    assignmentId = myModelList[0].assignmentId.toString();
+  }
+
+  static Future assignTaskCompleted(BuildContext context) async {
+    try {
+      String currentDate = localUserHandler.getCurrentDateTime();
+      var getCollection = await FirebaseFirestore.instance.collection('AssignmentTemplate');
+      await getCollection.doc(assignmentId).update({
+        'statusimport 'package:flutter/material.dart';
+
+
+typedef IndexFunction = void Function(int);
+
+class CustomBottomNavBar extends StatelessWidget {
+  final int selectedIndex;
+  final IndexFunction onTabChanged;
+  final List<Widget> navItems;
+  const CustomBottomNavBar(
+      {super.key, required this.selectedIndex, required this.onTabChanged, required this.navItems});
+
+  @override
+  Widget build(BuildContext context) {
+    return
+      NavigationBarTheme(
+      data: NavigationBarThemeData(
+        indicatorColor: Colors.transparent,
+        backgroundColor: Colors.black,
+        labelTextStyle: MaterialStateProperty.all(
+          const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            color: Colors.white,
+          ),
+        ),
+      ),
+      child: NavigationBar(
+        selectedIndex: selectedIndex,
+        onDestinationSelected: onTabChanged,
+        destinations: navItems,
+      ),
+    );
+  }
+}
+  19 changes: 11 additions & 8 deletions19  
+lib/components/inspections_page.dart
+@@ -56,7 +56,7 @@ class InspectionComponent extends StatelessWidget {
+                                // showAlertDialog(context, branches[index].id);
+
+                                child: FutureBuilder<String>(
+                                  future: getValue(  snapshot.data!.docs[index]['id'].toString()),
+                                  future: getValue(snapshot.data!.docs[index]['id'].toString()),
+                                  builder: (context, d) {
+                                    return Card(
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+@@ -70,7 +70,13 @@ class InspectionComponent extends StatelessWidget {
+                                              const TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: Sblack),
+                                        ),
+                                        // subtitle: Text(snapshot.data!.docs[index]['userName']),
+                                        trailing: d.data == 'true' ? Icon(Icons.check,color: Colors.green,) : const Text(''),
+
+                                        trailing: d.data == 'true'
+                                            ? Icon(
+                                                Icons.check,
+                                                color: Colors.green,
+                                              )
+                                            : const Text(''),
+                                      ),
+                                    );
+                                  },
+@@ -80,11 +86,8 @@ class InspectionComponent extends StatelessWidget {
+                  },
+                ))));
+  }
+  Future<String> getValue(String id) async
+{
+
+  return await locator.get<LocalStorageProvider>().retrieveDataByKey(id)??'';
+}
+  Future<String> getValue(String id) async {
+    return await locator.get<LocalStorageProvider>().retrieveDataByKey(id) ?? '';
+  }
+}
